@@ -50,23 +50,31 @@ export default function Habit({ habitsData, tagList }) {
     calculateTagRate(tagName, filteredHabits)
   );
 
+  const valueFormatter = (value: number | null) => `${value}%`;
   return (
     <>
       <p>{totalHabitRate}%</p>
-      {tagRates.map((tag) => (
-        //   <ul>
-        //       <li key={tag.tagName}>
-        //         {tag.tagName}: {tag.rate}%
-        //       </li>
-        <BarChart
-          xAxis={[{ scaleType: "band", data: [tag.tagName] }]}
-          series={[{ data: [tag.rate] }]}
-          width={500}
-          height={300}
-          colors={["blue"]}
-        />
-      ))}
-      {/* </ul> */}
+      <BarChart
+        yAxis={[
+          {
+            label: "Completion (%)",
+          },
+        ]}
+        xAxis={[
+          {
+            scaleType: "band",
+            data: tagRates.map((item) => item.tagName),
+            categoryGapRatio: 0.4,
+          },
+        ]}
+        series={[{ data: tagRates.map((item) => item.rate), valueFormatter }]}
+        width={1000}
+        height={300}
+        colors={["#2196F3", "#4CAF50", "#FFC107", "#E91E63", "#9C27B0"]}
+        grid={{
+          horizontal: true,
+        }}
+      />
     </>
   );
 }

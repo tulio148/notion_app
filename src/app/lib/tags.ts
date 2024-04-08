@@ -1,5 +1,3 @@
-import exp from "constants";
-
 export const personalList = ["Growth", "Productivity", "Higiene", "Health"];
 export const fitnessList = [
   "Weight Lifting",
