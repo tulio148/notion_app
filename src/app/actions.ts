@@ -116,7 +116,7 @@ export async function fetchAndInsertHabits() {
         }
       }
 
-      await client.query("COMMIT"); // Commit the transaction
+      await client.query("COMMIT");
       console.log("Habits and categories inserted or updated successfully!");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -167,6 +167,136 @@ ORDER BY name, date DESC;`;
     console.log("Completion table updated successfully!");
   } catch (error) {
     console.error("Error populating completion table:", error);
+  } finally {
+    client.release();
+  }
+}
+
+export async function getHabitCompletionByArea(areaName) {
+  const client = await conn.connect();
+  try {
+    const areaQuery = "SELECT id FROM area WHERE name = $1";
+    const areaResult = await client.query(areaQuery, [areaName]);
+    const areaId = areaResult.rows[0]?.id;
+
+    if (!areaId) {
+      throw new Error(`Area '${areaName}' not found.`);
+    }
+
+    const completionQuery = `
+      SELECT hc.*
+      FROM habit_completion hc
+      JOIN habit h ON hc.habit_id = h.id
+      JOIN category c ON h.category_name = c.name
+      WHERE c.area_id = $1
+      ORDER BY hc.date;
+    `;
+    const completionResult = await client.query(completionQuery, [areaId]);
+    return completionResult.rows;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getHabitCompletionByCategory(categoryName) {
+  const client = await conn.connect();
+  try {
+    const categoryQuery = "SELECT name FROM category WHERE name = $1";
+    const categoryResult = await client.query(categoryQuery, [categoryName]);
+    const categoryId = categoryResult.rows[0]?.id;
+
+    if (!categoryId) {
+      throw new Error(`Category '${categoryName}' not found.`);
+    }
+
+    const completionQuery = `
+      SELECT hc.*
+      FROM habit_completion hc
+      JOIN habit h ON hc.habit_id = h.id
+      WHERE h.category_name = $1
+      ORDER BY hc.date;
+    `;
+    const completionResult = await client.query(completionQuery, [categoryId]);
+    return completionResult.rows;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getHabitCompletionByName(habitName) {
+  const client = await conn.connect();
+  try {
+    const habitQuery = "SELECT id FROM habit WHERE name = $1";
+    const habitResult = await client.query(habitQuery, [habitName]);
+    const habitId = habitResult.rows[0]?.id;
+
+    if (!habitId) {
+      throw new Error(`Habit '${habitName}' not found.`);
+    }
+
+    const completionQuery = `
+      SELECT *
+      FROM habit_completion
+      WHERE habit_id = $1
+      ORDER BY date;
+    `;
+    const completionResult = await client.query(completionQuery, [habitId]);
+    return completionResult.rows;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getAreaNames() {
+  const client = await conn.connect();
+  try {
+    const areaQuery = "SELECT name FROM area ORDER BY name";
+    const areaResult = await client.query(areaQuery);
+    return areaResult.rows.map((row) => row.name);
+  } finally {
+    client.release();
+  }
+}
+
+export async function getCategoryNames(areaName) {
+  const client = await conn.connect();
+  try {
+    const areaQuery = "SELECT id FROM area WHERE name = $1";
+    const areaResult = await client.query(areaQuery, [areaName]);
+    const areaId = areaResult.rows[0]?.id;
+
+    if (!areaId) {
+      throw new Error(`Area '${areaName}' not found.`);
+    }
+
+    const categoryQuery = `
+      SELECT name
+      FROM category
+      WHERE area_id = $1
+      ORDER BY name;
+    `;
+    const categoryResult = await client.query(categoryQuery, [areaId]);
+    return categoryResult.rows.map((row) => row.name);
+  } finally {
+    client.release();
+  }
+}
+
+export async function getHabitNames(categoryName) {
+  const client = await conn.connect();
+  try {
+    if (!categoryName) {
+      throw new Error(`Category '${categoryName}' not found.`);
+    }
+
+    const habitQuery = `
+      SELECT DISTINCT name
+      FROM habit
+      WHERE category_name = $1
+      ORDER BY name;
+    `;
+    const habitResult = await client.query(habitQuery, [categoryName]);
+    return habitResult.rows.map((row) => row.name);
   } finally {
     client.release();
   }
