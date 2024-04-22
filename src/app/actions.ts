@@ -1,3 +1,4 @@
+"use server";
 import { Client } from "@notionhq/client";
 import { conn } from "./lib/db";
 
@@ -226,21 +227,17 @@ export async function getHabitCompletionByCategory(categoryName) {
 export async function getHabitCompletionByName(habitName) {
   const client = await conn.connect();
   try {
-    const habitQuery = "SELECT id FROM habit WHERE name = $1";
-    const habitResult = await client.query(habitQuery, [habitName]);
-    const habitId = habitResult.rows[0]?.id;
-
-    if (!habitId) {
+    if (!habitName) {
       throw new Error(`Habit '${habitName}' not found.`);
     }
 
     const completionQuery = `
       SELECT *
       FROM habit_completion
-      WHERE habit_id = $1
+      WHERE habit_name = $1
       ORDER BY date;
     `;
-    const completionResult = await client.query(completionQuery, [habitId]);
+    const completionResult = await client.query(completionQuery, [habitName]);
     return completionResult.rows;
   } finally {
     client.release();

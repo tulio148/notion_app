@@ -12,13 +12,12 @@
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
     "@mui/material": "^5.15.15",
-    "@mui/x-charts": "^7.1.1",
-    "@mui/x-data-grid": "^6.19.10",
     "@notionhq/client": "^2.2.14",
     "next": "14.1.4",
     "pg": "^8.11.5",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "react-google-charts": "^4.0.1"
   },
   "devDependencies": {
     "@types/node": "^20",
