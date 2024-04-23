@@ -1,33 +1,11 @@
-import { getAreaNames, getCategoryNames, getHabitNames } from "./actions";
 import { Buttons } from "./buttons";
+import { fetchData } from "./lib/names";
+import { getHabitCompletion } from "./actions";
 import ChartComponent from "./chart";
-
 export default async function Dashboard() {
-  const areaNames = await getAreaNames();
-  const categoryNames = [];
-  for (const areaName of areaNames) {
-    const categories = await getCategoryNames(areaName);
-    categoryNames.push({ area: areaName, categories: categories });
-  }
-
-  const habitNames = [];
-  await Promise.all(
-    categoryNames.map(async (category) => {
-      await Promise.all(
-        category.categories.map(async (categoryName) => {
-          const habits = await getHabitNames(categoryName);
-          habitNames.push({
-            area: category.area,
-            category: categoryName,
-            habits: habits,
-          });
-        })
-      );
-    })
-  );
-
-  console.log(habitNames);
-
+  const { areaNames, categoryNames, habitNames } = await fetchData();
+  const completions = await getHabitCompletion();
+  console.log(completions);
   return (
     <div>
       <Buttons
@@ -35,7 +13,7 @@ export default async function Dashboard() {
         categories={categoryNames}
         habits={habitNames}
       />
-      {/* <ChartComponent data={[]} /> */}
+      <ChartComponent completions={completions} habitNames={habitNames} />
     </div>
   );
 }
