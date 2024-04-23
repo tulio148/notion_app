@@ -1,6 +1,15 @@
 "use client";
 import { Chart } from "react-google-charts";
-export default function ChartComponent({ data }) {
+import { useHabit } from "./context";
+export default function ChartComponent({ completions, habitNames }) {
+  let data = null;
+  const { selectedArea, selectedCategory, selectedHabit } = useHabit();
+  if (selectedHabit) {
+    data = completions.filter(
+      (completion) => completion.habit_name === selectedHabit
+    );
+  }
+  console.log(habitNames);
   function transformDataForLineChart(data) {
     const result = [["Date", "Completion"]];
     data.forEach((entry) => {
@@ -11,7 +20,9 @@ export default function ChartComponent({ data }) {
 
     return result;
   }
-  const lineChartData = transformDataForLineChart(data);
+  if (data) {
+    const lineChartData = transformDataForLineChart(data);
+  }
 
   const options = {
     hAxis: {
@@ -20,7 +31,7 @@ export default function ChartComponent({ data }) {
     vAxis: {
       title: "Completion",
     },
-    title: data[0].habit_name,
+    title: completions[0].habit_name,
     curveType: "function",
     legend: "none",
     animation: {
@@ -33,13 +44,15 @@ export default function ChartComponent({ data }) {
   return (
     <>
       <div className=" w-full h-96">
-        <Chart
-          chartType="LineChart"
-          width="100%"
-          height="400px"
-          data={lineChartData}
-          options={options}
-        />
+        {data && (
+          <Chart
+            chartType="LineChart"
+            width="100%"
+            height="400px"
+            data={lineChartData}
+            options={options}
+          />
+        )}
       </div>
     </>
   );
