@@ -42,7 +42,6 @@ export async function fetchAndInsertHabits() {
 
     const habitsToInsert = allItems.map((item) => ({
       id: item.id,
-      last_edited: item.last_edited_time,
       category_name: item.properties.Category.select.name,
       category_id: item.properties.Category.select.id,
       status: item.properties.Status.status.name,
@@ -53,78 +52,47 @@ export async function fetchAndInsertHabits() {
 
     const client = await conn.connect();
 
-    await client.query("BEGIN");
-
     try {
-      for (const habit of habitsToInsert) {
-        const existingHabitResult = await client.query(
+      await client.query("BEGIN");
+
+      await client.query("TRUNCATE TABLE area RESTART IDENTITY CASCADE;");
+
+      for (const database of databases) {
+        await client.query(
           `
-          SELECT last_edited
-          FROM habit
-          WHERE id = $1
+          INSERT INTO area (id, name)
+          VALUES ($1, $2)
+          ON CONFLICT (id) DO NOTHING;
           `,
-          [habit.id]
+          [database.dbId, database.area]
+        );
+      }
+
+      for (const habit of habitsToInsert) {
+        await client.query(
+          `
+          INSERT INTO category (name, area_id)
+          VALUES ($1, $2)
+          ON CONFLICT (name) DO NOTHING;
+          `,
+          [habit.category_name, habit.area]
         );
 
-        if (existingHabitResult.rows.length > 0) {
-          const existingLastEdited = existingHabitResult.rows[0].last_edited;
-
-          if (existingLastEdited !== habit.last_edited) {
-            await client.query(
-              `
-              UPDATE habit
-              SET last_edited = $1,
-                  category_name = $2,
-                  status = $3,
-                  date = $4,
-                  name = $5
-              WHERE id = $6;
-              `,
-              [
-                habit.last_edited,
-                habit.category_name,
-                habit.status,
-                habit.date,
-                habit.name,
-                habit.id,
-              ]
-            );
-          }
-        } else {
-          await client.query(
-            `
-            INSERT INTO category (name, area_id)
-            VALUES ($1, $2)
-            ON CONFLICT (name) DO NOTHING;
-            `,
-            [habit.category_name, habit.area]
-          );
-          await client.query(
-            `
-            INSERT INTO habit (id, last_edited, category_name, status, date, name)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (id) DO NOTHING;
-            `,
-            [
-              habit.id,
-              habit.last_edited,
-              habit.category_name,
-              habit.status,
-              habit.date,
-              habit.name,
-            ]
-          );
-        }
+        await client.query(
+          `
+          INSERT INTO habit (id, category_name, status, date, name)
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT (id) DO NOTHING;
+          `,
+          [habit.id, habit.category_name, habit.status, habit.date, habit.name]
+        );
       }
 
       await client.query("COMMIT");
-      console.log("Habits and categories inserted or updated successfully!");
+      console.log("Habits and categories inserted successfully!");
     } catch (error) {
       await client.query("ROLLBACK");
-      console.error(
-        "Error inserting or updating habits and categories:",
-        error
-      );
+      console.error("Error inserting habits:", error);
       throw error;
     } finally {
       client.release();
@@ -193,6 +161,21 @@ export async function getHabitCompletionByArea(areaName) {
       ORDER BY hc.date;
     `;
     const completionResult = await client.query(completionQuery, [areaId]);
+    return completionResult.rows;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getHabitCompletion() {
+  const client = await conn.connect();
+  try {
+    const completionQuery = `
+      SELECT hc.*
+      FROM habit_completion hc
+      
+    `;
+    const completionResult = await client.query(completionQuery);
     return completionResult.rows;
   } finally {
     client.release();
