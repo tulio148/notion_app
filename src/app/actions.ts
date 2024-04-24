@@ -40,15 +40,25 @@ export async function fetchAndInsertHabits() {
       })
     );
 
-    const habitsToInsert = allItems.map((item) => ({
-      id: item.id,
-      category_name: item.properties.Category.select.name,
-      category_id: item.properties.Category.select.id,
-      status: item.properties.Status.status.name,
-      date: item.properties.Date.date.start,
-      name: item.properties.Name.title[0].plain_text,
-      area: item.parent.database_id.replace(/-/g, ""),
-    }));
+    const habitsToInsert = allItems.map((item) => {
+      const id = item.id || null;
+      const categoryName = item.properties.Category?.select?.name || "Unknown";
+      const categoryId = item.properties.Category?.select?.id || null;
+      const statusName = item.properties.Status?.status?.name || "Unknown";
+      const date = item.properties.Date?.date?.start || null;
+      const name = item.properties.Name?.title[0]?.plain_text || "Unnamed";
+      const area = item.parent?.database_id?.replace(/-/g, "") || null;
+
+      return {
+        id,
+        category_name: categoryName,
+        category_id: categoryId,
+        status: statusName,
+        date,
+        name,
+        area,
+      };
+    });
 
     const client = await conn.connect();
 
@@ -103,23 +113,84 @@ export async function fetchAndInsertHabits() {
   }
 }
 
-export async function populateCompletionTable() {
+export async function populateHabitCompletionTable() {
   const client = await conn.connect();
 
   try {
-    const getAllQuery = `SELECT id, name, 
-    date, 
- SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) 
-   OVER (PARTITION BY name ORDER BY date) AS cumulative_done_count,
- SUM(CASE WHEN status = 'Not started' THEN 1 ELSE 0 END) 
-   OVER (PARTITION BY name ORDER BY date) AS cumulative_not_started_count
-FROM habit
-ORDER BY name, date DESC;`;
-    const result = await client.query(getAllQuery);
+    await client.query("BEGIN");
+    const habitQuery = `
+    SELECT
+      id,
+      name,
+      date,
+      SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) 
+        OVER (PARTITION BY name ORDER BY date) AS cumulative_done_count,
+      SUM(CASE WHEN status = 'Not started' THEN 1 ELSE 0 END) 
+        OVER (PARTITION BY name ORDER BY date) AS cumulative_not_started_count
+    FROM
+      habit
+    ORDER BY
+      name, date DESC;
+  `;
+    const areaQuery = `
+      WITH HabitCounts AS (
+        SELECT
+          a.name AS area_name,
+          SUM(CASE WHEN h.status = 'Done' THEN 1 ELSE 0 END) AS sum_done,
+          SUM(CASE WHEN h.status = 'Not started' THEN 1 ELSE 0 END) AS sum_not_started
+        FROM
+          habit h
+        JOIN
+          category c ON h.category_name = c.name
+        JOIN
+          area a ON c.area_id = a.id
+        GROUP BY
+          a.name
+      )
+      SELECT
+        area_name,
+        sum_done AS sum_cumulative_done_count,
+        sum_not_started AS sum_cumulative_not_started_count,
+        CASE
+          WHEN (sum_done + sum_not_started) > 0 THEN
+            (sum_done::FLOAT / (sum_done + sum_not_started)) * 100  
+          ELSE
+            NULL  
+        END AS done_percentage
+      FROM
+        HabitCounts;
+    `;
+
+    const categoryQuery = `
+      WITH HabitCounts AS (
+        SELECT
+          c.name AS category_name,
+          SUM(CASE WHEN h.status = 'Done' THEN 1 ELSE 0 END) AS sum_done,
+          SUM(CASE WHEN h.status = 'Not started' THEN 1 ELSE 0 END) AS sum_not_started
+        FROM
+          habit h
+        JOIN
+          category c ON h.category_name = c.name
+        GROUP BY
+          c.name
+      )
+      SELECT
+        category_name,
+        sum_done AS sum_cumulative_done_count,
+        sum_not_started AS sum_cumulative_not_started_count,
+        CASE
+          WHEN (sum_done + sum_not_started) > 0 THEN
+            (sum_done::FLOAT / (sum_done + sum_not_started)) * 100 
+          ELSE
+            NULL  
+        END AS done_percentage
+      FROM
+        HabitCounts;
+    `;
+    const result = await client.query(habitQuery);
     for (const row of result.rows) {
       await client.query(
-        `INSERT INTO habit_completion (habit_id, habit_name, date, cumulative_done_count, cumulative_not_started_count, completion_ratio) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (habit_id) DO UPDATE SET habit_name = $2, date = $3, cumulative_done_count = $4, cumulative_not_started_count = $5, completion_ratio = $6;
-         `,
+        `INSERT INTO habit_completion (habit_id, habit_name, date, cumulative_done_count, cumulative_not_started_count, completion_ratio) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (habit_id) DO UPDATE SET habit_name = $2, date = $3, cumulative_done_count = $4, cumulative_not_started_count = $5, completion_ratio = $6;`,
         [
           row.id,
           row.name,
@@ -133,35 +204,37 @@ ORDER BY name, date DESC;`;
         ]
       );
     }
-    console.log("Completion table updated successfully!");
-  } catch (error) {
-    console.error("Error populating completion table:", error);
-  } finally {
-    client.release();
-  }
-}
-
-export async function getHabitCompletionByArea(areaName) {
-  const client = await conn.connect();
-  try {
-    const areaQuery = "SELECT id FROM area WHERE name = $1";
-    const areaResult = await client.query(areaQuery, [areaName]);
-    const areaId = areaResult.rows[0]?.id;
-
-    if (!areaId) {
-      throw new Error(`Area '${areaName}' not found.`);
+    const areaResult = await client.query(areaQuery);
+    for (const row of areaResult.rows) {
+      await client.query(
+        `INSERT INTO area_completion (area_name, cumulative_done_count, cumulative_not_started_count, completion_ratio) VALUES ($1, $2, $3, $4) `,
+        [
+          row.area_name,
+          row.sum_cumulative_done_count,
+          row.sum_cumulative_not_started_count,
+          row.done_percentage,
+        ]
+      );
     }
 
-    const completionQuery = `
-      SELECT hc.*
-      FROM habit_completion hc
-      JOIN habit h ON hc.habit_id = h.id
-      JOIN category c ON h.category_name = c.name
-      WHERE c.area_id = $1
-      ORDER BY hc.date;
-    `;
-    const completionResult = await client.query(completionQuery, [areaId]);
-    return completionResult.rows;
+    const categoryResult = await client.query(categoryQuery);
+    for (const row of categoryResult.rows) {
+      await client.query(
+        `INSERT INTO category_completion (category_name, cumulative_done_count, cumulative_not_started_count, completion_ratio) VALUES ($1, $2, $3, $4) ;`,
+        [
+          row.category_name,
+          row.sum_cumulative_done_count,
+          row.sum_cumulative_not_started_count,
+          row.done_percentage,
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+    console.log("Completion table updated successfully!");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error populating completion table:", error);
   } finally {
     client.release();
   }
@@ -171,8 +244,22 @@ export async function getHabitCompletion() {
   const client = await conn.connect();
   try {
     const completionQuery = `
-      SELECT hc.*
-      FROM habit_completion hc
+    SELECT hc.*
+    FROM habit_completion hc
+    
+    `;
+    const completionResult = await client.query(completionQuery);
+    return completionResult.rows;
+  } finally {
+    client.release();
+  }
+}
+export async function getCategoryCompletion() {
+  const client = await conn.connect();
+  try {
+    const completionQuery = `
+      SELECT cc.*
+      FROM category_completion cc
       
     `;
     const completionResult = await client.query(completionQuery);
@@ -181,46 +268,14 @@ export async function getHabitCompletion() {
     client.release();
   }
 }
-
-export async function getHabitCompletionByCategory(categoryName) {
+export async function getAreaCompletion() {
   const client = await conn.connect();
   try {
-    const categoryQuery = "SELECT name FROM category WHERE name = $1";
-    const categoryResult = await client.query(categoryQuery, [categoryName]);
-    const categoryId = categoryResult.rows[0]?.id;
-
-    if (!categoryId) {
-      throw new Error(`Category '${categoryName}' not found.`);
-    }
-
     const completionQuery = `
-      SELECT hc.*
-      FROM habit_completion hc
-      JOIN habit h ON hc.habit_id = h.id
-      WHERE h.category_name = $1
-      ORDER BY hc.date;
+      SELECT ac.*
+      FROM area_completion ac
     `;
-    const completionResult = await client.query(completionQuery, [categoryId]);
-    return completionResult.rows;
-  } finally {
-    client.release();
-  }
-}
-
-export async function getHabitCompletionByName(habitName) {
-  const client = await conn.connect();
-  try {
-    if (!habitName) {
-      throw new Error(`Habit '${habitName}' not found.`);
-    }
-
-    const completionQuery = `
-      SELECT *
-      FROM habit_completion
-      WHERE habit_name = $1
-      ORDER BY date;
-    `;
-    const completionResult = await client.query(completionQuery, [habitName]);
+    const completionResult = await client.query(completionQuery);
     return completionResult.rows;
   } finally {
     client.release();
