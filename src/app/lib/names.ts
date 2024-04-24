@@ -1,6 +1,6 @@
 import { getAreaNames, getCategoryNames, getHabitNames } from "../actions";
 
-export async function fetchData() {
+export async function fetchNames() {
   try {
     const areaNames = await getAreaNames();
     const categoryNames = [];

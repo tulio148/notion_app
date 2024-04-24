@@ -31,7 +31,6 @@ export function Buttons({ areas, categories, habits }) {
   const handleHabitClick = (habit) => {
     setSelectedHabit(habit);
   };
-  console.log(selectedArea, selectedCategory, selectedHabit);
 
   return (
     <div className="w-full">
@@ -71,7 +70,7 @@ export function Buttons({ areas, categories, habits }) {
             <Select
               labelId="habits-dropdown-label"
               id="habits-dropdown"
-              value={selectedHabit}
+              value={selectedHabit ?? ""}
               onChange={(e) => handleHabitClick(e.target.value)}
               label="Habits"
             >

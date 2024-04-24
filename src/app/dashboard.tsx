@@ -1,11 +1,11 @@
 import { Buttons } from "./buttons";
-import { fetchData } from "./lib/names";
-import { getHabitCompletion } from "./actions";
+import { fetchNames } from "./lib/names";
+import { fetchCompletions } from "./lib/completions";
 import ChartComponent from "./chart";
 export default async function Dashboard() {
-  const { areaNames, categoryNames, habitNames } = await fetchData();
-  const completions = await getHabitCompletion();
-  console.log(completions);
+  const { areaNames, categoryNames, habitNames } = await fetchNames();
+  const { habitCompletions, categoryCompletions, areaCompletions } =
+    await fetchCompletions();
   return (
     <div>
       <Buttons
@@ -13,7 +13,11 @@ export default async function Dashboard() {
         categories={categoryNames}
         habits={habitNames}
       />
-      <ChartComponent completions={completions} habitNames={habitNames} />
+      <ChartComponent
+        habitCompletions={habitCompletions}
+        categoryCompletions={categoryCompletions}
+        areaCompletions={areaCompletions}
+      />
     </div>
   );
 }
