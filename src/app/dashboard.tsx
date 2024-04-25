@@ -6,8 +6,9 @@ export default async function Dashboard() {
   const { areaNames, categoryNames, habitNames } = await fetchNames();
   const { habitCompletions, categoryCompletions, areaCompletions } =
     await fetchCompletions();
+
   return (
-    <div>
+    <div className="p-2 flex flex-col gap-3 ">
       <Buttons
         areas={areaNames}
         categories={categoryNames}

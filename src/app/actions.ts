@@ -207,7 +207,7 @@ export async function populateHabitCompletionTable() {
     const areaResult = await client.query(areaQuery);
     for (const row of areaResult.rows) {
       await client.query(
-        `INSERT INTO area_completion (area_name, cumulative_done_count, cumulative_not_started_count, completion_ratio) VALUES ($1, $2, $3, $4) `,
+        `INSERT INTO area_completion (area_name, cumulative_done_count, cumulative_not_started_count, completion_ratio) VALUES ($1, $2, $3, $4) ON CONFLICT (date, area_name) DO UPDATE SET cumulative_done_count = $2, cumulative_not_started_count = $3, completion_ratio = $4;`,
         [
           row.area_name,
           row.sum_cumulative_done_count,
@@ -220,7 +220,7 @@ export async function populateHabitCompletionTable() {
     const categoryResult = await client.query(categoryQuery);
     for (const row of categoryResult.rows) {
       await client.query(
-        `INSERT INTO category_completion (category_name, cumulative_done_count, cumulative_not_started_count, completion_ratio) VALUES ($1, $2, $3, $4) ;`,
+        `INSERT INTO category_completion (category_name, cumulative_done_count, cumulative_not_started_count, completion_ratio) VALUES ($1, $2, $3, $4) ON CONFLICT (date, category_name) DO UPDATE SET cumulative_done_count = $2, cumulative_not_started_count = $3, completion_ratio = $4;`,
         [
           row.category_name,
           row.sum_cumulative_done_count,
