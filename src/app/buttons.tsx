@@ -33,8 +33,8 @@ export function Buttons({ areas, categories, habits }) {
   };
 
   return (
-    <div className="w-full">
-      <ButtonGroup variant="outlined" aria-label="Basic button group">
+    <div className="">
+      <ButtonGroup variant="text" aria-label="Basic button group">
         {areas.map((area) => (
           <Button key={area} onClick={() => handleAreaClick(area)}>
             {area}
@@ -48,7 +48,7 @@ export function Buttons({ areas, categories, habits }) {
             .map((cat) => (
               <ButtonGroup
                 key={cat.area}
-                variant="outlined"
+                variant="text"
                 aria-label="Basic button group"
               >
                 {cat.categories.map((category) => (
